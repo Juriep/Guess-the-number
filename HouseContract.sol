@@ -5,8 +5,10 @@ contract HouseContract {
     // Owner of the contract
     address public owner;
 
+    address public betContractAddress;
+
     uint256 public minBet = 0.01 ether;
-    uint256 public maxBet = 10 ether;
+    uint256 public maxBet = 100 ether;
 
     event BetReceived(address indexed from, uint256 amount);
     event Withdrawal(address indexed to, uint256 amount);
@@ -20,22 +22,27 @@ contract HouseContract {
         _;
     }
 
+    modifier onlyBetContract() {
+        require(msg.sender == betContractAddress, "Caller is not the BetContract");
+        _;
+    }
+
     constructor() {
         owner = msg.sender;
     }
 
-    // Allow users to place bets by sending ETH
-    // This function can be called by anyone to place a bet
-    receive() external payable {
-        require(msg.value >= minBet && msg.value <= maxBet, "Bet out of range");
-        userLastBet[msg.sender] = msg.value;
-        emit BetReceived(msg.sender, msg.value);
+
+    function setBetContract(address _betContractAddress) external onlyOwner {
+        betContractAddress = _betContractAddress;
     }
 
-    fallback() external payable {
+    function placeBetForUser(address user) external payable {
+        
         require(msg.value >= minBet && msg.value <= maxBet, "Bet out of range");
-        userLastBet[msg.sender] = msg.value;
-        emit BetReceived(msg.sender, msg.value);
+        require(msg.sender == betContractAddress, "Not authorized");
+        userLastBet[user] = msg.value;
+        emit BetReceived(user, msg.value);
+
     }
 
     // Allow the owner to withdraw ETH from the contract
@@ -54,6 +61,11 @@ contract HouseContract {
         payable(winner).transfer(prize);
         emit PrizePaid(winner, prize);
         userLastBet[winner] = 0; // Reset after paying prize
+    }
+
+    function handleLoss(address user) external onlyBetContract {
+        require(userLastBet[user] > 0, "No bet found for this user");
+        userLastBet[user] = 0;
     }
 
     // Get contract balance
